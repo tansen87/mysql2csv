@@ -68,7 +68,7 @@ pub struct Cli {
         value_name = "database",
         help = "Sets the database name"
     )]
-    database: String,
+    db: String,
 
     /// table name
     #[arg(
@@ -90,6 +90,17 @@ pub struct Cli {
         help = "The primary key of the data table"
     )]
     index: Option<String>,
+
+    /// delimiter
+    #[arg(
+        short,
+        long,
+        value_parser,
+        value_name = "delimiter",
+        default_value = "|",
+        help = "Write delimiter to CSV file"
+    )]
+    delim: String,
 
     /// sql script
     #[arg(
@@ -127,7 +138,7 @@ pub struct Cli {
 pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let url = format!(
         "mysql://{}:{}@{}:{}/{}",
-        cli.username, cli.password, cli.host, cli.port, cli.database
+        cli.username, cli.password, cli.host, cli.port, cli.db
     );
 
     info!("Connecting to MySQL database...");
@@ -215,8 +226,9 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 
             // save path
             let output_path = format!("{}\\{}.csv", &folder_path, cli.table);
+            let delim = cli.delim.as_bytes().first().cloned().unwrap_or(b'|');
             let mut wtr = csv::WriterBuilder::new()
-                .delimiter(b'|')
+                .delimiter(delim)
                 .from_path(output_path)?;
 
             // write headers
