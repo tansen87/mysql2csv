@@ -1,8 +1,4 @@
-use std::{
-  fs::{File, OpenOptions},
-  io::Write,
-  time::Duration,
-};
+use std::{io::Write, time::Duration};
 
 use ansi_term::Color;
 use chrono::Local;
@@ -153,22 +149,13 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
   if !folder_exists(&cli.output) {
     std::fs::create_dir(&cli.output)?;
   }
-  info!("Creating logs.log file...");
-  File::create(format!("{}/logs.log", cli.output)).expect("Failed to create file");
-  let mut log_file = OpenOptions::new()
-    .append(true)
-    .open(format!("{}/logs.log", cli.output))?;
-  let check_msg = format!("Checking {}, please wait...", cli.table);
+
   info!(
-    "Checking {}, and creating output directory if not exists...",
+    "Checking table: {}, and creating output directory if not exists...",
     cli.table
   );
-  let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-  let check_msg_log = format!("{} => {}\n", &timestamp, &check_msg);
-  log_file.write_all(check_msg_log.as_bytes())?;
 
   // query headers
-  info!("Fetching table headers...");
   let re = regex::Regex::new(r"(?i)\blimit\s+\d+(\s*,\s*\d+)?\b.*")?;
   let header_q = re.replace_all(&cli.sql, "").into_owned();
   let sql_query_header = format!("{} LIMIT 10", header_q);
@@ -214,11 +201,6 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
           )?
           .progress_chars("=>-"),
       );
-
-      let emit_msg = format!("{}", cli.table);
-      let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-      let check_done_log = format!("{} => {}\n", &timestamp, &emit_msg);
-      log_file.write_all(check_done_log.as_bytes())?;
 
       let folder_path = format!("{}/{}", cli.output, cli.table);
 
@@ -279,7 +261,7 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
               let num: i16 = row.get(num);
               num.to_string()
             }
-            "TINYBLOB" | "BLOB" | "MEDIUMBLOB" | "LONGBLOB" => {
+            "TINYBLOB" | "BLOB" | "MEDIUMBLOB" | "LONGBLOB" | "VARBINARY" | "BINARY" => {
               let num: Vec<u8> = row.get(num);
               String::from_utf8_lossy(&num).to_string()
             }
@@ -302,32 +284,13 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         pb.inc(1);
       }
       wtr.flush()?;
-      let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-      let output = format!("{}/{}.csv", &folder_path, cli.table);
-      let output_log = format!("{} => {}\n", &timestamp, output);
-      log_file.write_all(output_log.as_bytes())?;
 
       pb.finish_with_message("done");
     }
-    Err(error) => {
-      let err_msg = format!("Error with {}: {}", cli.table, error);
-      error!("{}", &err_msg);
-      let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-      let err_msg_log = format!("{} => {}\n", &timestamp, &err_msg);
-      File::create(format!("{}/failed.log", cli.output)).expect("Failed to create file");
-      let mut failed_file = OpenOptions::new()
-        .append(true)
-        .open(format!("{}/failed.log", cli.output))?;
-      failed_file
-        .write_all(err_msg.as_bytes())
-        .expect("Failed to write to file");
-      log_file.write_all(&err_msg_log.as_bytes())?;
+    Err(err) => {
+      error!("Error with table: {} => {}", cli.table, err);
     }
   }
-
-  let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-  let msg_done_log = format!("{} => Done\n", &timestamp);
-  log_file.write_all(msg_done_log.as_bytes())?;
 
   info!("All operations completed successfully.");
 
